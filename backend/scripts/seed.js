@@ -55,6 +55,8 @@ const templates = [
       { x: 380, y: 780 },
       { x: 340, y: 760 },
     ],
+    spineMode: 'solid',
+    spineColor: '#2a2f40',
   },
   {
     title: 'Editorial Gold — Premium',
@@ -72,6 +74,8 @@ const templates = [
       { x: 410, y: 750 },
       { x: 370, y: 730 },
     ],
+    spineMode: 'solid',
+    spineColor: '#222735',
   },
 ];
 

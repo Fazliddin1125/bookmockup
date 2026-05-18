@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { mediaUrl } from '../api/config.js';
 import { CANVAS_DIMENSION, renderMockup } from '../utils/homography.js';
+import { resolveSpineBows } from '../utils/spineCurvature.js';
 import { loadImage, readFileAsDataUrl } from '../utils/imageLoader.js';
 
 export default function MockupEditor({ template, isPremiumUser = false }) {
@@ -24,15 +25,20 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
     setError('');
 
     try {
+      const bows = resolveSpineBows(template);
       await renderMockup({
         canvas: canvasRef.current,
         backgroundSrc: bgSrc,
         coverImage,
         coverCoords: template.coverCoords,
         spineCoords: template.spineCoords,
+        spineBowTop: bows.topBow,
+        spineBowBottom: bows.bottomBow,
+        spineMode: template.spineMode === 'slice' ? 'slice' : 'solid',
+        spineOffsetY: template.spineOffsetY ?? 0,
       });
     } catch (renderError) {
-      setError(renderError.message || 'Generatsiya xatosi');
+      setError(renderError.message || 'Ошибка генерации');
     } finally {
       setIsRendering(false);
     }
@@ -64,11 +70,11 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
 
   const applyCoverFile = async (file) => {
     if (isLocked) {
-      setError('Bu shablon Premium. Premium obuna kerak.');
+      setError('Этот шаблон Premium. Требуется подписка Premium.');
       return;
     }
     if (!file || !file.type.startsWith('image/')) {
-      setError('Faqat JPG yoki PNG yuklang.');
+      setError('Загрузите файл JPG или PNG.');
       return;
     }
 
@@ -105,7 +111,7 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
   return (
     <div className="client-shell">
       <Link to="/" className="client-back-link">
-        ← Shablonlarga qaytish
+        ← Вернуться к шаблонам
       </Link>
 
       <div className="mt-4 grid gap-6 lg:grid-cols-[380px_1fr]">
@@ -113,21 +119,21 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{template.title}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {template.isPremium ? 'Premium shablon' : 'Bepul shablon'} · Muqovani yuklang
+              {template.isPremium ? 'Премиум шаблон' : 'Бесплатный шаблон'} · Загрузите обложку
             </p>
           </div>
 
           {isLocked && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Bu shablon faqat Premium foydalanuvchilar uchun. Bepul shablonlardan birini tanlang.
+              Этот шаблон только для Premium. Выберите бесплатный шаблон.
             </div>
           )}
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-700">Muqova (old yuz)</span>
+              <span className="text-sm font-semibold text-slate-700">Обложка (лицевая сторона)</span>
               {coverPreview && !isLocked && (
-                <span className="text-xs font-bold uppercase text-emerald-600">Yuklandi ✓</span>
+                <span className="text-xs font-bold uppercase text-emerald-600">Загружено ✓</span>
               )}
             </div>
 
@@ -159,18 +165,20 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
                 <>
                   <img
                     src={coverPreview}
-                    alt="Muqova"
+                    alt="Обложка"
                     className="max-h-40 w-auto rounded-lg border border-slate-200 object-contain shadow-sm"
                   />
                   <span className="mt-3 text-xs font-medium uppercase text-slate-500">
-                    O&apos;zgartirish uchun bosing
+                    Нажмите, чтобы изменить
                   </span>
                 </>
               ) : (
                 <>
                   <span className="text-4xl text-slate-400">+</span>
-                  <span className="mt-2 font-medium text-slate-700">JPG yoki PNG yuklang</span>
-                  <span className="mt-1 text-xs text-slate-500">Admin koordinatalari bo&apos;yicha joylashtiriladi</span>
+                  <span className="mt-2 font-medium text-slate-700">Загрузите JPG или PNG</span>
+                  <span className="mt-1 text-xs text-slate-500">
+                    Размещение по координатам администратора
+                  </span>
                 </>
               )}
             </label>
@@ -182,14 +190,14 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
             onClick={downloadMockup}
             disabled={!coverImage || isRendering || isLocked}
           >
-            {isRendering ? 'Maket yaratilmoqda…' : 'Maketni yuklab olish (PNG)'}
+            {isRendering ? 'Создание макета…' : 'Скачать готовый макет (PNG)'}
           </button>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
         </aside>
 
         <section className="client-panel flex flex-col">
-          <h2 className="mb-4 text-lg font-semibold text-slate-800">Natija</h2>
+          <h2 className="mb-4 text-lg font-semibold text-slate-800">Результат</h2>
           {coverImage ? (
             <canvas
               id="generatorCanvas"
@@ -201,9 +209,9 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-24 text-center">
               <div className="mb-4 h-32 w-24 rounded bg-slate-200/80" />
-              <p className="text-lg font-medium text-slate-600">Sizning natijangiz</p>
+              <p className="text-lg font-medium text-slate-600">Ваш результат</p>
               <p className="mt-1 text-sm text-slate-400">
-                Muqova yuklangandan keyin bu yerda ko&apos;rinadi
+                Появится здесь после загрузки обложки
               </p>
             </div>
           )}

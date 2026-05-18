@@ -4,12 +4,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import Template from '../models/Template.js';
+import { saveTemplateFile } from '../utils/fileStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MONGODB_URI =
   process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/bookmockup';
 
-const uploadsDir = path.join(__dirname, '../uploads/templates');
 const sourceAsset = path.join(__dirname, '../assets/cosmic-book-template.png');
 
 const cosmicSpaceHardcover = {
@@ -35,34 +35,18 @@ const seed = async () => {
     process.exit(1);
   }
 
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-
-  const filename = 'cosmic-space-hardcover.png';
-  const destPath = path.join(uploadsDir, filename);
-  fs.copyFileSync(sourceAsset, destPath);
-
   await mongoose.connect(MONGODB_URI);
 
-  const existing = await Template.findOne({ title: cosmicSpaceHardcover.title });
-  if (existing?.bgImage?.startsWith('/uploads/')) {
-    const oldPath = path.join(__dirname, '..', existing.bgImage);
-    if (fs.existsSync(oldPath) && !oldPath.endsWith(filename)) {
-      fs.unlinkSync(oldPath);
-    }
-  }
+  const buffer = fs.readFileSync(sourceAsset);
+  const bgImage = await saveTemplateFile(buffer, 'cosmic-book-template.png', 'image/png');
 
   await Template.findOneAndUpdate(
     { title: cosmicSpaceHardcover.title },
-    {
-      ...cosmicSpaceHardcover,
-      bgImage: `/uploads/templates/${filename}`,
-    },
+    { ...cosmicSpaceHardcover, bgImage },
     { upsert: true, new: true }
   );
 
-  console.log('Cosmic template (fayl + MongoDB) tayyor.');
+  console.log('Cosmic template GridFS ga saqlandi:', bgImage);
   await mongoose.disconnect();
 };
 

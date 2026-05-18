@@ -3,7 +3,7 @@ export const loadImage = (src) =>
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.onerror = () => reject(new Error(`Не удалось загрузить изображение: ${src}`));
     img.src = src;
   });
 
@@ -11,7 +11,7 @@ export const readFileAsDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
     reader.readAsDataURL(file);
   });
 
@@ -45,5 +45,5 @@ export const waitForImage = (img) =>
       return;
     }
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Image failed to load'));
+    img.onerror = () => reject(new Error('Не удалось загрузить изображение'));
   });

@@ -10,11 +10,11 @@ export default function ClientLayout() {
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
             <Link to="/" className="hover:text-emerald-600">
-              Shablonlar
+              Шаблоны
             </Link>
             <span className="text-slate-300">|</span>
             <a href="#free" className="hover:text-emerald-600">
-              Bepul
+              Бесплатно
             </a>
             <a href="#premium" className="hover:text-emerald-600">
               Premium
@@ -24,7 +24,7 @@ export default function ClientLayout() {
             to="/login/admin"
             className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 transition"
           >
-            Admin
+            Админ
           </Link>
         </div>
       </header>
@@ -32,7 +32,7 @@ export default function ClientLayout() {
       <Outlet />
 
       <footer className="mt-16 border-t border-slate-200 bg-white py-8 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} BookMockup — 3D kitob maket generatori
+        © {new Date().getFullYear()} BookMockup — генератор 3D макетов книг
       </footer>
     </div>
   );

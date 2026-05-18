@@ -24,7 +24,7 @@ export default function TemplateGallery({ templates }) {
             </span>
           )}
         </div>
-        <span className="client-cta block text-center">3D maket — {template.title}</span>
+        <span className="client-cta block text-center">3D макет — {template.title}</span>
       </Link>
     </article>
   );
@@ -33,10 +33,10 @@ export default function TemplateGallery({ templates }) {
     <>
       <section className="client-hero border-b border-slate-200 bg-white py-12">
         <div className="client-shell !py-0">
-          <h1 className="client-hero-title">3D Mockup xizmati</h1>
+          <h1 className="client-hero-title">Сервис 3D макетов</h1>
           <p className="client-hero-text">
-            Shablonni tanlang, kitob muqovangizni JPG yoki PNG formatda yuklang — admin belgilagan
-            koordinatalar bo&apos;yicha professional 3D maket tayyorlanadi.
+            Выберите шаблон и загрузите обложку книги в формате JPG или PNG — изображение
+            автоматически разместится по координатам администратора.
           </p>
         </div>
       </section>
@@ -44,22 +44,24 @@ export default function TemplateGallery({ templates }) {
       <div className="client-shell">
         {freeTemplates.length > 0 && (
           <section id="free" className="mb-12 pt-4">
-            <h2 className="client-section-title">Kitob maketlari — Bepul</h2>
+            <h2 className="client-section-title">Макеты книг — бесплатно</h2>
             <div className="client-grid">{freeTemplates.map(renderCard)}</div>
           </section>
         )}
 
         {premiumTemplates.length > 0 && (
           <section id="premium" className="mb-12">
-            <h2 className="client-section-title">Premium maketlar</h2>
-            <p className="mb-5 text-sm text-slate-500">PRO belgili shablonlar premium obuna uchun.</p>
+            <h2 className="client-section-title">Премиум макеты</h2>
+            <p className="mb-5 text-sm text-slate-500">
+              Шаблоны с меткой PRO доступны по подписке Premium.
+            </p>
             <div className="client-grid">{premiumTemplates.map(renderCard)}</div>
           </section>
         )}
 
         {templates.length === 0 && (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-16 text-center text-slate-500">
-            Hozircha shablon yo&apos;q. Admin paneldan shablon qo&apos;shing.
+            Шаблонов пока нет. Добавьте их в панели администратора.
           </div>
         )}
       </div>

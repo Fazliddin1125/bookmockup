@@ -64,4 +64,23 @@
   .client-back-link {
     @apply text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline;
   }
+
+  .admin-marker {
+    @apply touch-none select-none;
+  }
+
+  .admin-marker::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 34px;
+    height: 34px;
+    transform: translate(-50%, -50%);
+    border-radius: 9999px;
+  }
+
+  .admin-marker-dot {
+    @apply relative z-10 h-2.5 w-2.5 rounded-full border-2 border-white shadow-lg ring-1 ring-black/20;
+  }
 }

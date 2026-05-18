@@ -14,15 +14,15 @@ export default function AdminLayout() {
       <header className="border-b border-white/10 bg-ink-950/80 backdrop-blur-md sticky top-0 z-50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
-            <p className="text-xs uppercase tracking-widest text-gold-400 font-semibold">Admin panel</p>
-            <h1 className="font-display text-lg font-bold text-white">Shablon boshqaruvi</h1>
+            <p className="text-xs uppercase tracking-widest text-gold-400 font-semibold">Панель администратора</p>
+            <h1 className="font-display text-lg font-bold text-white">Управление шаблонами</h1>
           </div>
           <div className="flex gap-2">
             <Link to="/" className="btn-ghost">
-              Sayt
+              Сайт
             </Link>
             <button type="button" className="btn-ghost text-red-300" onClick={handleLogout}>
-              Chiqish
+              Выйти
             </button>
           </div>
         </div>

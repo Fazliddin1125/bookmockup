@@ -1,4 +1,19 @@
 import { loadImage, waitForImage } from './imageLoader.js';
+import {
+  applySpineOffsetY,
+  buildSpineCurveMesh,
+  clipCurvedSpinePath,
+  normalizeQuad,
+  normalizeSpineBow,
+  pointInCurvedSpine,
+  SPINE_SEGMENTS,
+} from './spineCurvature.js';
+import {
+  createCoverEdgeStrip,
+  normalizeSpineMode,
+  sampleCoverSpineColor,
+  SPINE_MODES,
+} from './spineSource.js';
 
 const CANVAS_SIZE = 1024;
 
@@ -163,45 +178,70 @@ const sampleBilinear = (data, width, height, x, y) => {
 };
 
 const getSourcePixels = (image) => {
+  const w = image.width || image.naturalWidth;
+  const h = image.height || image.naturalHeight;
   const offscreen = document.createElement('canvas');
-  offscreen.width = image.width;
-  offscreen.height = image.height;
+  offscreen.width = w;
+  offscreen.height = h;
   const ctx = offscreen.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(image, 0, 0);
   return {
-    width: image.width,
-    height: image.height,
-    data: ctx.getImageData(0, 0, image.width, image.height).data,
+    width: w,
+    height: h,
+    data: ctx.getImageData(0, 0, w, h).data,
   };
 };
 
-export const warpImageToQuad = (targetCtx, image, quad) => {
-  if (!image || !image.width || !image.height) {
+const writeWarpPixel = (outData, outIndex, r, g, b, a) => {
+  const alpha = a / 255;
+  if (alpha <= 0) return;
+
+  const dstA = outData[outIndex + 3] / 255;
+
+  if (dstA < 0.04) {
+    outData[outIndex] = r;
+    outData[outIndex + 1] = g;
+    outData[outIndex + 2] = b;
+    outData[outIndex + 3] = Math.round(alpha * 255);
     return;
   }
 
+  const outAlpha = alpha + dstA * (1 - alpha);
+  if (outAlpha <= 0) return;
+
+  outData[outIndex] = (r * alpha + outData[outIndex] * dstA * (1 - alpha)) / outAlpha;
+  outData[outIndex + 1] = (g * alpha + outData[outIndex + 1] * dstA * (1 - alpha)) / outAlpha;
+  outData[outIndex + 2] = (b * alpha + outData[outIndex + 2] * dstA * (1 - alpha)) / outAlpha;
+  outData[outIndex + 3] = outAlpha * 255;
+};
+
+const warpImageToQuadData = (outData, image, quad) => {
+  const normalized = normalizeQuad(quad);
+  if (!image || !normalized) return;
+
+  const srcW = image.width || image.naturalWidth;
+  const srcH = image.height || image.naturalHeight;
+  if (!srcW || !srcH) return;
+
   const srcQuad = [
     { x: 0, y: 0 },
-    { x: image.width, y: 0 },
-    { x: image.width, y: image.height },
-    { x: 0, y: image.height },
+    { x: srcW, y: 0 },
+    { x: srcW, y: srcH },
+    { x: 0, y: srcH },
   ];
 
-  const forward = computeHomography(srcQuad, quad);
+  const forward = computeHomography(srcQuad, normalized);
   if (!forward) return;
 
   const inverse = invertHomography(forward);
   if (!inverse) return;
 
   const { width, height, data } = getSourcePixels(image);
-  const output = targetCtx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-  const outData = output.data;
-
-  const { minX, minY, maxX, maxY } = getBounds(quad);
+  const { minX, minY, maxX, maxY } = getBounds(normalized);
 
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
-      if (!pointInQuad(x, y, quad)) continue;
+      if (!pointInQuad(x, y, normalized)) continue;
 
       const src = applyHomography(inverse, x, y);
       if (!src) continue;
@@ -211,115 +251,143 @@ export const warpImageToQuad = (targetCtx, image, quad) => {
       }
 
       const [r, g, b, a] = sampleBilinear(data, width, height, src.x, src.y);
-      const outIndex = (y * CANVAS_SIZE + x) * 4;
-      const alpha = a / 255;
-
-      if (alpha <= 0) continue;
-
-      const dstIndex = outIndex;
-
-      if (alpha > 0.92) {
-        outData[dstIndex] = r;
-        outData[dstIndex + 1] = g;
-        outData[dstIndex + 2] = b;
-        outData[dstIndex + 3] = 255;
-        continue;
-      }
-
-      const dstA = outData[dstIndex + 3] / 255;
-      const outAlpha = alpha + dstA * (1 - alpha);
-
-      if (outAlpha <= 0) continue;
-
-      outData[dstIndex] = (r * alpha + outData[dstIndex] * dstA * (1 - alpha)) / outAlpha;
-      outData[dstIndex + 1] =
-        (g * alpha + outData[dstIndex + 1] * dstA * (1 - alpha)) / outAlpha;
-      outData[dstIndex + 2] =
-        (b * alpha + outData[dstIndex + 2] * dstA * (1 - alpha)) / outAlpha;
-      outData[dstIndex + 3] = outAlpha * 255;
+      writeWarpPixel(outData, (y * CANVAS_SIZE + x) * 4, r, g, b, a);
     }
   }
+};
 
+export const warpImageToQuad = (targetCtx, image, quad) => {
+  const output = targetCtx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  warpImageToQuadData(output.data, image, quad);
   targetCtx.putImageData(output, 0, 0);
 };
 
-export const drawSpineShadowOverlay = (targetCtx, spineQuad) => {
-  const [tl, tr, br, bl] = spineQuad;
+/** Fill only fully empty pixels inside curved spine (avoids gray strip banding) */
+const fillSpineLayerGaps = (layerCtx, mesh) => {
+  const { topCurve, bottomCurve } = mesh;
+  const imageData = layerCtx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  const data = imageData.data;
 
-  const hingeX = (tl.x + bl.x) / 2;
-  const hingeY = (tl.y + bl.y) / 2;
-  const outerX = (tr.x + br.x) / 2;
-  const outerY = (tr.y + br.y) / 2;
+  const xs = [...topCurve, ...bottomCurve].map((p) => p.x);
+  const ys = [...topCurve, ...bottomCurve].map((p) => p.y);
+  const minX = Math.max(0, Math.floor(Math.min(...xs)) - 1);
+  const minY = Math.max(0, Math.floor(Math.min(...ys)) - 1);
+  const maxX = Math.min(CANVAS_SIZE - 1, Math.ceil(Math.max(...xs)) + 1);
+  const maxY = Math.min(CANVAS_SIZE - 1, Math.ceil(Math.max(...ys)) + 1);
 
-  const overlayCanvas = document.createElement('canvas');
-  overlayCanvas.width = CANVAS_SIZE;
-  overlayCanvas.height = CANVAS_SIZE;
-  const overlayCtx = overlayCanvas.getContext('2d');
+  for (let pass = 0; pass < 2; pass += 1) {
+    const snapshot = new Uint8ClampedArray(data);
 
-  overlayCtx.save();
-  overlayCtx.beginPath();
-  overlayCtx.moveTo(tl.x, tl.y);
-  overlayCtx.lineTo(tr.x, tr.y);
-  overlayCtx.lineTo(br.x, br.y);
-  overlayCtx.lineTo(bl.x, bl.y);
-  overlayCtx.closePath();
-  overlayCtx.clip();
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        if (!pointInCurvedSpine(x, y, topCurve, bottomCurve)) continue;
 
-  const gradient = overlayCtx.createLinearGradient(hingeX, hingeY, outerX, outerY);
-  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
-  gradient.addColorStop(0.45, 'rgba(0, 0, 0, 0.18)');
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        const i = (y * CANVAS_SIZE + x) * 4;
+        if (snapshot[i + 3] > 0) continue;
 
-  overlayCtx.fillStyle = gradient;
-  overlayCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-  overlayCtx.restore();
+        const neighbors = [
+          [-1, 0],
+          [1, 0],
+          [0, -1],
+          [0, 1],
+        ];
 
-  const creaseGradient = overlayCtx.createLinearGradient(
-    tl.x,
-    tl.y,
-    tr.x,
-    tr.y
-  );
-  overlayCtx.save();
-  overlayCtx.beginPath();
-  overlayCtx.moveTo(tl.x, tl.y);
-  overlayCtx.lineTo(tr.x, tr.y);
-  overlayCtx.lineTo(br.x, br.y);
-  overlayCtx.lineTo(bl.x, bl.y);
-  overlayCtx.closePath();
-  overlayCtx.clip();
-  creaseGradient.addColorStop(0, 'rgba(0, 0, 0, 0.25)');
-  creaseGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  overlayCtx.fillStyle = creaseGradient;
-  overlayCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-  overlayCtx.restore();
+        for (const [ox, oy] of neighbors) {
+          const nx = x + ox;
+          const ny = y + oy;
+          if (nx < 0 || ny < 0 || nx >= CANVAS_SIZE || ny >= CANVAS_SIZE) continue;
+          const ni = (ny * CANVAS_SIZE + nx) * 4;
+          if (snapshot[ni + 3] < 220) continue;
+          data[i] = snapshot[ni];
+          data[i + 1] = snapshot[ni + 1];
+          data[i + 2] = snapshot[ni + 2];
+          data[i + 3] = 255;
+          break;
+        }
+      }
+    }
+  }
 
-  targetCtx.drawImage(overlayCanvas, 0, 0);
+  layerCtx.putImageData(imageData, 0, 0);
 };
 
-const applySurfaceLighting = (targetCtx, lightingData, quad, intensity = 0.72) => {
+/** Render spine mesh to isolated layer — no background bleed between strips */
+const renderSpineMeshToLayer = (fullStripImage, spineQuad, bows) => {
+  const mesh = buildSpineCurveMesh(spineQuad, bows, SPINE_SEGMENTS);
+  if (!mesh) return null;
+
+  const srcW = fullStripImage.width || fullStripImage.naturalWidth;
+  const srcH = fullStripImage.height || fullStripImage.naturalHeight;
+  if (!srcW || !srcH) return null;
+
+  const layer = document.createElement('canvas');
+  layer.width = CANVAS_SIZE;
+  layer.height = CANVAS_SIZE;
+  const layerCtx = layer.getContext('2d', { willReadFrequently: true });
+  layerCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+  const layerData = layerCtx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+  const { strips } = mesh;
+  const segments = strips.length;
+  const stripW = srcW / segments;
+
+  for (let i = 0; i < segments; i += 1) {
+    const { quad } = strips[i];
+    const srcX0 = Math.max(0, Math.floor((i - 0.35) * stripW));
+    const srcX1 = Math.min(srcW, Math.ceil((i + 1.35) * stripW));
+    const sw = Math.max(1, srcX1 - srcX0);
+
+    const stripCanvas = document.createElement('canvas');
+    stripCanvas.width = sw;
+    stripCanvas.height = srcH;
+    const stripCtx = stripCanvas.getContext('2d');
+    stripCtx.drawImage(fullStripImage, srcX0, 0, sw, srcH, 0, 0, sw, srcH);
+
+    warpImageToQuadData(layerData.data, stripCanvas, quad);
+  }
+
+  layerCtx.putImageData(layerData, 0, 0);
+  fillSpineLayerGaps(layerCtx, mesh);
+
+  return { layer, layerCtx, mesh };
+};
+
+/** Solid spine — single fill, no strip mesh (no background bleed) */
+const renderSolidSpine = (targetCtx, spineQuad, bows, fillColor) => {
+  const mesh = buildSpineCurveMesh(spineQuad, bows, SPINE_SEGMENTS);
+  if (!mesh) return;
+
+  targetCtx.save();
+  clipCurvedSpinePath(targetCtx, mesh.topCurve, mesh.bottomCurve);
+  targetCtx.fillStyle = fillColor;
+  targetCtx.fill();
+  targetCtx.restore();
+};
+
+const applySurfaceLighting = (targetCtx, lightingData, quad, intensity = 0.2) => {
+  const normalized = normalizeQuad(quad);
+  if (!normalized) return;
+
   const output = targetCtx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
   const outData = output.data;
   const bgData = lightingData.data;
-  const { minX, minY, maxX, maxY } = getBounds(quad);
+  const { minX, minY, maxX, maxY } = getBounds(normalized);
 
   for (let y = minY; y <= maxY; y += 1) {
     for (let x = minX; x <= maxX; x += 1) {
-      if (!pointInQuad(x, y, quad)) continue;
+      if (!pointInQuad(x, y, normalized)) continue;
 
       const index = (y * CANVAS_SIZE + x) * 4;
       if (outData[index + 3] < 8) continue;
 
-      const bgR = bgData[index];
-      const bgG = bgData[index + 1];
-      const bgB = bgData[index + 2];
-      const luminance = (0.299 * bgR + 0.587 * bgG + 0.114 * bgB) / 255;
-      const blended = 1 - intensity + intensity * luminance;
+      const lum =
+        (0.299 * bgData[index] + 0.587 * bgData[index + 1] + 0.114 * bgData[index + 2]) / 255;
+      const blended = 1 + (lum - 0.5) * intensity;
 
-      for (let channel = 0; channel < 3; channel += 1) {
-        outData[index + channel] = Math.min(
+      for (let ch = 0; ch < 3; ch += 1) {
+        outData[index + ch] = Math.min(
           255,
-          Math.max(0, Math.round(outData[index + channel] * blended))
+          Math.max(0, Math.round(outData[index + ch] * blended))
         );
       }
     }
@@ -334,7 +402,18 @@ export const renderMockup = async ({
   coverImage,
   coverCoords,
   spineCoords,
+  spineBowTop = 0,
+  spineBowBottom = 0,
+  spineMode = SPINE_MODES.SOLID,
+  spineOffsetY = 0,
 }) => {
+  const cover = normalizeQuad(coverCoords);
+  const spine = normalizeQuad(applySpineOffsetY(spineCoords, spineOffsetY));
+
+  if (!cover || !spine) {
+    throw new Error('Некорректные координаты шаблона (нужно 4 точки на обложку и корешок).');
+  }
+
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
@@ -342,37 +421,39 @@ export const renderMockup = async ({
   ctx.drawImage(background, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
   const lightingSnapshot = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-  if (coverImage) {
-    const sliceWidth = Math.max(1, Math.floor(coverImage.width * 0.04));
-    const spineSliceCanvas = document.createElement('canvas');
-    spineSliceCanvas.width = sliceWidth;
-    spineSliceCanvas.height = coverImage.height;
-    const spineSliceCtx = spineSliceCanvas.getContext('2d');
-    spineSliceCtx.drawImage(
-      coverImage,
-      0,
-      0,
-      sliceWidth,
-      coverImage.height,
-      0,
-      0,
-      sliceWidth,
-      coverImage.height
-    );
+  if (!coverImage) return;
 
-    const spineSliceImage = new Image();
-    spineSliceImage.crossOrigin = 'anonymous';
-    spineSliceImage.src = spineSliceCanvas.toDataURL('image/png');
-    await waitForImage(spineSliceImage);
+  const mode = normalizeSpineMode(spineMode);
+  const bows = {
+    topBow: normalizeSpineBow(spineBowTop),
+    bottomBow: normalizeSpineBow(spineBowBottom),
+  };
+  const hasBow = bows.topBow !== 0 || bows.bottomBow !== 0;
 
-    warpImageToQuad(ctx, spineSliceImage, spineCoords);
-    applySurfaceLighting(ctx, lightingSnapshot, spineCoords, 0.5);
+  if (mode === SPINE_MODES.SOLID) {
+    const fillColor = sampleCoverSpineColor(coverImage);
+    renderSolidSpine(ctx, spine, bows, fillColor);
+  } else {
+    const [stl, str] = spine;
+    const spineScreenWidth = Math.hypot(str.x - stl.x, str.y - stl.y);
+    const coverScreenWidth = Math.hypot(cover[1].x - cover[0].x, cover[1].y - cover[0].y);
+    const widthRatio = coverScreenWidth > 1 ? spineScreenWidth / coverScreenWidth : 0.08;
+    const sliceFraction = Math.min(0.03, Math.max(0.018, widthRatio * 0.3));
 
-    warpImageToQuad(ctx, coverImage, coverCoords);
-    applySurfaceLighting(ctx, lightingSnapshot, coverCoords, 0.42);
+    const spineStrip = createCoverEdgeStrip(coverImage, sliceFraction);
 
-    drawSpineShadowOverlay(ctx, spineCoords);
+    if (hasBow) {
+      const spineResult = renderSpineMeshToLayer(spineStrip, spine, bows);
+      if (spineResult) {
+        ctx.drawImage(spineResult.layer, 0, 0);
+      }
+    } else {
+      warpImageToQuad(ctx, spineStrip, spine);
+    }
   }
+
+  warpImageToQuad(ctx, coverImage, cover);
+  applySurfaceLighting(ctx, lightingSnapshot, cover, 0.12);
 };
 
 export const CANVAS_DIMENSION = CANVAS_SIZE;

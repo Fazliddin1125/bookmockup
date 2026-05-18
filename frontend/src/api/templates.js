@@ -7,12 +7,10 @@ const parseJsonResponse = async (response, fallbackMessage) => {
     const text = await response.text();
     if (text.includes('Cannot PUT') || text.includes('Cannot POST')) {
       throw new Error(
-        'Backend eski versiyada. Terminalda: cd backend && npm start (qayta ishga tushiring)'
+        'Устаревшая версия сервера. Перезапустите: cd backend && npm start'
       );
     }
-    throw new Error(
-      'Backend javob bermadi. Terminalda: cd backend && npm start'
-    );
+    throw new Error('Сервер не отвечает. Запустите backend.');
   }
 
   const payload = await response.json();
@@ -32,12 +30,27 @@ export const fetchTemplateById = async (id) => {
   return payload.data;
 };
 
-export const createTemplate = async ({ title, isPremium, coverCoords, spineCoords, imageFile }) => {
+export const createTemplate = async ({
+  title,
+  isPremium,
+  coverCoords,
+  spineCoords,
+  spineBowTop = 0,
+  spineBowBottom = 0,
+  spineOffsetY = 0,
+  spineMode = 'solid',
+  imageFile,
+}) => {
   const formData = new FormData();
   formData.append('title', title);
   formData.append('isPremium', String(isPremium));
   formData.append('coverCoords', JSON.stringify(coverCoords));
   formData.append('spineCoords', JSON.stringify(spineCoords));
+  formData.append('spineBowTop', String(Math.round(Number(spineBowTop)) || 0));
+  formData.append('spineBowBottom', String(Math.round(Number(spineBowBottom)) || 0));
+  formData.append('spineCurvature', '0');
+  formData.append('spineOffsetY', String(Math.round(Number(spineOffsetY)) || 0));
+  formData.append('spineMode', spineMode);
   formData.append('templateImage', imageFile);
 
   const response = await fetch(apiUrl('/api/templates'), {
@@ -46,7 +59,7 @@ export const createTemplate = async ({ title, isPremium, coverCoords, spineCoord
     body: formData,
   });
 
-  const payload = await parseJsonResponse(response, 'Shablon saqlanmadi');
+  const payload = await parseJsonResponse(response, 'Не удалось сохранить шаблон');
   return payload.data;
 };
 
@@ -56,6 +69,10 @@ export const updateTemplate = async ({
   isPremium,
   coverCoords,
   spineCoords,
+  spineBowTop = 0,
+  spineBowBottom = 0,
+  spineOffsetY = 0,
+  spineMode = 'solid',
   imageFile,
 }) => {
   const formData = new FormData();
@@ -63,6 +80,11 @@ export const updateTemplate = async ({
   formData.append('isPremium', String(isPremium));
   formData.append('coverCoords', JSON.stringify(coverCoords));
   formData.append('spineCoords', JSON.stringify(spineCoords));
+  formData.append('spineBowTop', String(Math.round(Number(spineBowTop)) || 0));
+  formData.append('spineBowBottom', String(Math.round(Number(spineBowBottom)) || 0));
+  formData.append('spineCurvature', '0');
+  formData.append('spineOffsetY', String(Math.round(Number(spineOffsetY)) || 0));
+  formData.append('spineMode', spineMode);
   if (imageFile) {
     formData.append('templateImage', imageFile);
   }
@@ -73,7 +95,7 @@ export const updateTemplate = async ({
     body: formData,
   });
 
-  const payload = await parseJsonResponse(response, 'Shablon yangilanmadi');
+  const payload = await parseJsonResponse(response, 'Не удалось обновить шаблон');
   return payload.data;
 };
 

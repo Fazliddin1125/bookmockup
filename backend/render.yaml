@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: book-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: MONGODB_URI
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: UPLOADS_PATH
+        value: /var/data/uploads/templates
+      - key: CORS_ORIGINS
+        value: https://bookmockup-seven.vercel.app,http://localhost:5173
+    disk:
+      name: book-uploads
+      mountPath: /var/data/uploads
+      sizeGB: 1

@@ -31,13 +31,13 @@ export default function AdminLogin() {
         className="glass-panel w-full max-w-md p-8 space-y-5"
       >
         <div className="text-center">
-          <p className="text-xs uppercase tracking-widest text-gold-400 font-semibold">Admin</p>
-          <h1 className="font-display text-2xl font-bold mt-1">Kirish</h1>
+          <p className="text-xs uppercase tracking-widest text-gold-400 font-semibold">Админ</p>
+          <h1 className="font-display text-2xl font-bold mt-1">Вход</h1>
           <p className="text-sm text-white/50 mt-2">/login/admin</p>
         </div>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm text-white/70">Login</span>
+          <span className="mb-1.5 block text-sm text-white/70">Логин</span>
           <input
             className="input-field"
             value={username}
@@ -48,7 +48,7 @@ export default function AdminLogin() {
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm text-white/70">Parol</span>
+          <span className="mb-1.5 block text-sm text-white/70">Пароль</span>
           <input
             type="password"
             className="input-field"
@@ -62,7 +62,7 @@ export default function AdminLogin() {
         {error && <p className="text-sm text-red-300">{error}</p>}
 
         <button type="submit" className="btn-primary w-full" disabled={loading}>
-          {loading ? 'Kirish…' : 'Admin panelga kirish'}
+          {loading ? 'Вход…' : 'Войти в панель администратора'}
         </button>
 
         <button
@@ -70,7 +70,7 @@ export default function AdminLogin() {
           className="btn-ghost w-full"
           onClick={() => navigate('/')}
         >
-          ← Saytga qaytish
+          ← Вернуться на сайт
         </button>
       </form>
     </div>

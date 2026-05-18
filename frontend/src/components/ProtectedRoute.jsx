@@ -14,7 +14,7 @@ export default function ProtectedRoute({ children }) {
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-ink-950 flex items-center justify-center text-white/60">
-        Tekshirilmoqda…
+        Проверка доступа…
       </div>
     );
   }

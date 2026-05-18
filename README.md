@@ -1,34 +1,21 @@
-# bookmockup
+# Book Mockup — monorepo (local development)
 
-3D kitob mockup generator — admin shablon yaratadi, mijoz muqovani yuklab 3D maket oladi.
+Ikki alohida GitHub repo:
 
-## Stack
+| Repo | Maqsad |
+|------|--------|
+| [bookmockup](https://github.com/Fazliddin1125/bookmockup) | **Faqat frontend** → Vercel |
+| [book_server](https://github.com/Fazliddin1125/book_server) | **Faqat backend** → Render |
 
-- **Frontend:** React + Vite + Tailwind
-- **Backend:** Node.js + Express + MongoDB
-- **Engine:** Canvas homography warp
-
-## Local ishga tushirish
+## Local (ikkala xizmat)
 
 ```bash
-npm run install:all
+# Backend
+cd backend && npm install && npm start
 
-# Terminal 1
-cd backend && npm start
-
-# Terminal 2
-cd frontend && npm run dev
+# Frontend
+cd frontend && npm install && npm run dev
 ```
 
-- Sayt: http://localhost:5173
-- Admin: http://localhost:5173/login/admin
-
-## Deploy (frontend — Vercel)
-
-1. [Vercel](https://vercel.com) → Import repo `Fazliddin1125/bookmockup`
-2. **Root Directory:** `frontend`
-3. **Environment variable:**
-   - `VITE_API_URL` = backend URL (masalan `https://your-api.onrender.com`)
-4. Deploy
-
-Backend alohida deploy qiling (Render, Railway, VPS) va `MONGODB_URI`, `ADMIN_*`, `JWT_SECRET` ni `.env` da sozlang.
+- Frontend: http://localhost:5173
+- Backend: http://localhost:5001

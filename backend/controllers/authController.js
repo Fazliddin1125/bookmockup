@@ -10,12 +10,12 @@ export const adminLogin = (req, res) => {
   if (!adminUser || !adminPass || !jwtSecret) {
     return res.status(500).json({
       success: false,
-      message: 'Serverda ADMIN_USERNAME, ADMIN_PASSWORD, JWT_SECRET sozlanmagan',
+      message: 'На сервере не настроены ADMIN_USERNAME, ADMIN_PASSWORD или JWT_SECRET',
     });
   }
 
   if (username !== adminUser || password !== adminPass) {
-    return res.status(401).json({ success: false, message: 'Login yoki parol noto\'g\'ri' });
+    return res.status(401).json({ success: false, message: 'Неверный логин или пароль' });
   }
 
   const token = jwt.sign({ role: 'admin', username }, jwtSecret, { expiresIn: '7d' });

@@ -17,13 +17,13 @@ export const verifyAdminSession = async () => {
 
     if (!contentType.includes('application/json')) {
       setAuthToken(null);
-      throw new Error('Backend ishlamayapti');
+      throw new Error('Сервер недоступен');
     }
 
     const payload = await response.json();
     if (!response.ok) {
       setAuthToken(null);
-      throw new Error(payload.message || 'Sessiya tugagan');
+      throw new Error(payload.message || 'Сессия истекла');
     }
     return payload.data;
   } catch (error) {

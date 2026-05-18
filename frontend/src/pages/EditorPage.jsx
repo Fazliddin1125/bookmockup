@@ -19,14 +19,14 @@ export default function EditorPage() {
       <div className="client-shell py-20 text-center">
         <p className="text-red-600 mb-4">{error}</p>
         <Link to="/" className="client-back-link">
-          ← Shablonlarga qaytish
+          ← Вернуться к шаблонам
         </Link>
       </div>
     );
   }
 
   if (!template) {
-    return <p className="client-shell py-20 text-center text-slate-500">Yuklanmoqda…</p>;
+    return <p className="client-shell py-20 text-center text-slate-500">Загрузка…</p>;
   }
 
   return <MockupEditor template={template} isPremiumUser={false} />;

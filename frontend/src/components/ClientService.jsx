@@ -23,7 +23,7 @@ export default function ClientService() {
 
   if (loading) {
     return (
-      <div className="client-shell py-20 text-center text-slate-500">Shablonlar yuklanmoqda…</div>
+      <div className="client-shell py-20 text-center text-slate-500">Загрузка шаблонов…</div>
     );
   }
 
