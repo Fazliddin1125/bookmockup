@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-body min-h-screen;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-ink-900/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-panel;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 px-6 py-3 font-semibold text-ink-950 transition hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-white/10 bg-ink-800/80 px-4 py-2.5 text-sm text-white placeholder:text-white/40 outline-none ring-gold-500/40 focus:border-gold-500/50 focus:ring-2;
+  }
+
+  .client-shell {
+    @apply mx-auto max-w-7xl px-4 py-8 sm:px-6;
+  }
+
+  .client-hero {
+    @apply mb-10 text-center;
+  }
+
+  .client-hero-title {
+    @apply font-display text-3xl sm:text-4xl font-bold text-slate-900;
+  }
+
+  .client-hero-text {
+    @apply mt-3 mx-auto max-w-2xl text-slate-600;
+  }
+
+  .client-section-title {
+    @apply mb-5 text-xl font-bold text-slate-800;
+  }
+
+  .client-grid {
+    @apply grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  .client-card {
+    @apply rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden transition hover:shadow-md;
+  }
+
+  .client-cta {
+    @apply w-full bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600 active:scale-[0.99];
+  }
+
+  .client-panel {
+    @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-sm;
+  }
+
+  .client-back-link {
+    @apply text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline;
+  }
+}
