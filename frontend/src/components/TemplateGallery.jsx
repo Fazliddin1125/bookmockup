@@ -2,6 +2,20 @@ import { Link } from 'react-router-dom';
 import { mediaUrl } from '../api/config.js';
 
 export default function TemplateGallery({ templates }) {
+  const byCategory = templates.reduce((acc, template) => {
+    const key = template.category?.name || 'Без категории';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(template);
+    return acc;
+  }, {});
+
+  const categoryNames = Object.keys(byCategory).sort((a, b) => {
+    if (a === 'Без категории') return 1;
+    if (b === 'Без категории') return -1;
+    return a.localeCompare(b, 'ru');
+  });
+
+  const hasCategories = templates.some((t) => t.category?.name);
   const freeTemplates = templates.filter((t) => !t.isPremium);
   const premiumTemplates = templates.filter((t) => t.isPremium);
 
@@ -42,14 +56,22 @@ export default function TemplateGallery({ templates }) {
       </section>
 
       <div className="client-shell">
-        {freeTemplates.length > 0 && (
+        {hasCategories &&
+          categoryNames.map((name) => (
+            <section key={name} className="mb-12 pt-2">
+              <h2 className="client-section-title">{name}</h2>
+              <div className="client-grid">{byCategory[name].map(renderCard)}</div>
+            </section>
+          ))}
+
+        {!hasCategories && freeTemplates.length > 0 && (
           <section id="free" className="mb-12 pt-4">
             <h2 className="client-section-title">Макеты книг — бесплатно</h2>
             <div className="client-grid">{freeTemplates.map(renderCard)}</div>
           </section>
         )}
 
-        {premiumTemplates.length > 0 && (
+        {!hasCategories && premiumTemplates.length > 0 && (
           <section id="premium" className="mb-12">
             <h2 className="client-section-title">Премиум макеты</h2>
             <p className="mb-5 text-sm text-slate-500">

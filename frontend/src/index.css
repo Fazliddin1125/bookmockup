@@ -66,21 +66,128 @@
   }
 
   .admin-marker {
-    @apply touch-none select-none;
+    @apply relative h-11 w-11 touch-none select-none;
   }
 
-  .admin-marker::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 34px;
-    height: 34px;
-    transform: translate(-50%, -50%);
-    border-radius: 9999px;
+  .admin-marker-ring {
+    @apply absolute inset-0 rounded-full border-2 shadow-md;
+    pointer-events: none;
   }
 
-  .admin-marker-dot {
-    @apply relative z-10 h-2.5 w-2.5 rounded-full border-2 border-white shadow-lg ring-1 ring-black/20;
+  .admin-marker-crosshair {
+    @apply absolute left-1/2 top-1/2 z-20 h-3 w-px -translate-x-1/2 -translate-y-1/2;
+    pointer-events: none;
+  }
+
+  .admin-marker-crosshair-v {
+    @apply h-px w-3;
+  }
+
+  .admin-marker-core {
+    @apply absolute left-1/2 top-1/2 z-30 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+  }
+
+  .admin-marker-label {
+    @apply pointer-events-none absolute left-1/2 top-full z-40 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-white;
+  }
+
+  .admin-nav-link {
+    @apply block rounded-lg px-3 py-2.5 text-sm font-medium text-white/65 transition hover:bg-white/5 hover:text-white;
+  }
+
+  .admin-nav-link-active {
+    @apply bg-gold-500/15 text-gold-400 ring-1 ring-gold-500/30;
+  }
+
+  .admin-preview-panel {
+    @apply rounded-2xl border border-white/10 bg-ink-900/80 p-3;
+  }
+
+
+  .admin-preview-placeholder {
+    @apply pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-white/45;
+  }
+
+  .admin-test-cover-zone {
+    @apply rounded-xl border-2 border-dashed border-white/20 bg-white/5 p-4 text-center transition hover:border-amber-400/50 hover:bg-amber-500/5;
+  }
+
+  .admin-test-cover-zone-active {
+    @apply border-amber-400 bg-amber-500/10;
+  }
+
+  .admin-templates-root {
+    @apply mx-auto w-full max-w-5xl px-1 sm:px-2;
+  }
+
+  .admin-editor-stack {
+    @apply flex w-full flex-col gap-3;
+  }
+
+  /* Koordinata maydoni — katta kvadrat, markerlar uchun qulay */
+  .admin-coord-stage {
+    width: min(700px, calc(100vw - 1.5rem));
+    height: min(700px, calc(100vw - 1.5rem));
+    max-width: 700px;
+    max-height: 700px;
+    aspect-ratio: 1 / 1;
+    margin-left: auto;
+    margin-right: auto;
+    flex-shrink: 0;
+  }
+
+  .admin-workspace-wrap {
+    @apply flex w-full justify-center py-1;
+  }
+
+  /* Preview — kvadrat, proporsiya saqlanadi */
+  .admin-preview-stage {
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 1 / 1;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .admin-preview-canvas-wrap {
+    @apply relative mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-xl border border-white/10 bg-ink-950;
+  }
+
+  .admin-preview-panel-full {
+    @apply w-full rounded-2xl border border-white/10 bg-ink-900/80 p-3;
+  }
+
+  .admin-settings-drawer {
+    @apply rounded-xl border border-white/10 bg-ink-900/50;
+  }
+
+  .admin-template-rail {
+    @apply max-h-[280px] overflow-y-auto rounded-xl border border-white/10 bg-ink-900/40 p-3;
+  }
+
+  .admin-preview-modal-overlay {
+    @apply fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 backdrop-blur-sm sm:p-6;
+  }
+
+  .admin-preview-modal {
+    @apply flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-ink-950 shadow-2xl;
+  }
+
+  .admin-preview-modal-header {
+    @apply flex flex-wrap items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6;
+  }
+
+  .admin-preview-modal-body {
+    @apply flex-1 overflow-auto p-3 sm:p-4;
+  }
+
+  .admin-preview-modal-body .admin-preview-stage {
+    width: 100%;
+    max-width: min(420px, 90vw);
+    aspect-ratio: 1 / 1;
+    height: auto;
+    max-height: min(420px, calc(96vh - 140px));
   }
 }

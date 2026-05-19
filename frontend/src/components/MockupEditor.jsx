@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { mediaUrl } from '../api/config.js';
+import { applyCanvasQuality } from '../utils/canvasQuality.js';
 import { CANVAS_DIMENSION, renderMockup } from '../utils/homography.js';
 import { resolveSpineBows } from '../utils/spineCurvature.js';
 import { loadImage, readFileAsDataUrl } from '../utils/imageLoader.js';
@@ -36,6 +37,10 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
         spineBowBottom: bows.bottomBow,
         spineMode: template.spineMode === 'slice' ? 'slice' : 'solid',
         spineOffsetY: template.spineOffsetY ?? 0,
+        layoutMode: template.layoutMode ?? '3d',
+        foregroundSrc: template.foregroundImage
+          ? mediaUrl(template.foregroundImage)
+          : null,
       });
     } catch (renderError) {
       setError(renderError.message || 'Ошибка генерации');
@@ -50,6 +55,7 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
     const paintBackground = async () => {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
+      applyCanvasQuality(ctx);
       ctx.clearRect(0, 0, CANVAS_DIMENSION, CANVAS_DIMENSION);
       try {
         const bg = await loadImage(bgSrc);
@@ -199,13 +205,17 @@ export default function MockupEditor({ template, isPremiumUser = false }) {
         <section className="client-panel flex flex-col">
           <h2 className="mb-4 text-lg font-semibold text-slate-800">Результат</h2>
           {coverImage ? (
-            <canvas
-              id="generatorCanvas"
-              ref={canvasRef}
-              width={CANVAS_DIMENSION}
-              height={CANVAS_DIMENSION}
-              className="mx-auto w-full max-w-[640px] rounded-xl border border-slate-200 bg-slate-100 aspect-square"
-            />
+            <div className="mx-auto w-full max-w-[480px]">
+              <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <canvas
+                  id="generatorCanvas"
+                  ref={canvasRef}
+                  width={CANVAS_DIMENSION}
+                  height={CANVAS_DIMENSION}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            </div>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-24 text-center">
               <div className="mb-4 h-32 w-24 rounded bg-slate-200/80" />

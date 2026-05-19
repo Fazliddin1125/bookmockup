@@ -73,7 +73,7 @@ const apexFromControl = (mid, normX, normY, control) =>
   (control.x - mid.x) * normX + (control.y - mid.y) * normY;
 
 export const applySpineOffsetY = (coords, offsetY = 0) => {
-  if (!Array.isArray(coords)) return coords;
+  if (!Array.isArray(coords)) return null;
   const dy = Math.round(Number(offsetY) || 0);
   if (dy === 0) return coords.map((p) => ({ x: p.x, y: p.y }));
   return coords.map((p) => ({ x: p.x, y: p.y + dy }));
@@ -91,6 +91,27 @@ export const normalizeQuad = (coords) => {
     .filter((p) => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y)))
     .map((p) => ({ x: Number(p.x), y: Number(p.y) }));
   return points.length === 4 ? points : null;
+};
+
+/** API/admin may send JSON string or [[x,y],…] tuples — normalize before render */
+export const parseTemplateCoords = (coords) => {
+  let raw = coords;
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(raw) || raw.length !== 4) return null;
+
+  if (Array.isArray(raw[0])) {
+    return normalizeQuad(
+      raw.map((pair) => ({ x: Number(pair[0]), y: Number(pair[1]) }))
+    );
+  }
+
+  return normalizeQuad(raw);
 };
 
 export const buildSpineCurveMesh = (
@@ -221,9 +242,9 @@ export const pointInCurvedSpine = (px, py, topCurve, bottomCurve) => {
   return inside;
 };
 
-export const clipCurvedSpinePath = (ctx, topCurve, bottomCurve) => {
+/** Curved spine outline as a subpath (for clip unions). */
+export const appendCurvedSpinePath = (ctx, topCurve, bottomCurve) => {
   if (!topCurve?.length || topCurve.length < 2) return;
-  ctx.beginPath();
   ctx.moveTo(topCurve[0].x, topCurve[0].y);
   for (let i = 1; i < topCurve.length; i += 1) {
     const prev = topCurve[i - 1];
@@ -241,5 +262,10 @@ export const clipCurvedSpinePath = (ctx, topCurve, bottomCurve) => {
   }
   ctx.lineTo(bottomCurve[0].x, bottomCurve[0].y);
   ctx.closePath();
+};
+
+export const clipCurvedSpinePath = (ctx, topCurve, bottomCurve) => {
+  ctx.beginPath();
+  appendCurvedSpinePath(ctx, topCurve, bottomCurve);
   ctx.clip();
 };

@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import templateRoutes from './routes/templateRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import { streamTemplateFile } from './utils/fileStorage.js';
 
@@ -49,6 +50,7 @@ app.get('/uploads/templates/:filename', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/templates', templateRoutes);
 
 app.get('/', (_req, res) => {

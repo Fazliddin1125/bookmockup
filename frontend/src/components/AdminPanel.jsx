@@ -7,7 +7,11 @@ import {
   updateTemplate,
 } from '../api/templates.js';
 import { mediaUrl } from '../api/config.js';
-import CoordOverlay from './CoordOverlay.jsx';
+import { fetchCategories, flattenCategoryTree } from '../api/categories.js';
+import AdminMockupPreviewModal from './AdminMockupPreviewModal.jsx';
+import AdminWorkspace from './admin/AdminWorkspace.jsx';
+import { clientPointToCanvas, WORKSPACE_CANVAS_SIZE } from '../utils/workspaceCanvasFit.js';
+import { loadImage } from '../utils/imageLoader.js';
 import {
   applySpineOffsetY,
   getBottomBowControlPoint,
@@ -20,9 +24,10 @@ import {
   spineBowBottomFromControlPoint,
   spineBowTopFromControlPoint,
 } from '../utils/spineCurvature.js';
+import { LAYOUT_MODES, is2DLayoutMode, normalizeLayoutMode } from '../utils/layoutMode.js';
 import { SPINE_MODES, normalizeSpineMode } from '../utils/spineSource.js';
 
-const CANVAS_SIZE = 1024;
+const CANVAS_SIZE = WORKSPACE_CANVAS_SIZE;
 
 const DEFAULT_COVER = [
   { x: 420, y: 180 },
@@ -38,27 +43,7 @@ const DEFAULT_SPINE = [
   { x: 340, y: 760 },
 ];
 
-const CORNER_LABELS = ['TL', 'TR', 'BR', 'BL'];
-
-function DraggableMarker({ point, color, label, onMouseDragStart, onTouchDragStart }) {
-  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
-
-  return (
-    <button
-      type="button"
-      aria-label={`Маркер ${label}`}
-      onMouseDown={onMouseDragStart}
-      onTouchStart={onTouchDragStart}
-      className="admin-marker absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"
-      style={{ left: `${(point.x / CANVAS_SIZE) * 100}%`, top: `${(point.y / CANVAS_SIZE) * 100}%` }}
-    >
-      <span className={`admin-marker-dot ${color}`} />
-      <span className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 py-0.5 text-[9px] font-bold text-white">
-        {label}
-      </span>
-    </button>
-  );
-}
+const DEMO_COVER_URL = '/samples/demo-cover.png';
 
 export default function AdminPanel() {
   const [editingId, setEditingId] = useState(null);
@@ -72,18 +57,34 @@ export default function AdminPanel() {
   const [spineBowBottom, setSpineBowBottom] = useState(0);
   const [spineOffsetY, setSpineOffsetY] = useState(0);
   const [spineMode, setSpineMode] = useState(SPINE_MODES.SOLID);
+  const [layoutMode, setLayoutMode] = useState(LAYOUT_MODES.MODE_3D);
+  const [categoryId, setCategoryId] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [testCoverImage, setTestCoverImage] = useState(null);
+  const [testCoverName, setTestCoverName] = useState('');
+  const [isTestCoverDragging, setIsTestCoverDragging] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewRenderKey, setPreviewRenderKey] = useState(0);
 
   const workspaceRef = useRef(null);
   const dragTargetRef = useRef(null);
   const previewObjectUrlRef = useRef(null);
+  const testCoverUrlRef = useRef(null);
 
   const revokePreviewUrl = () => {
     if (previewObjectUrlRef.current) {
       URL.revokeObjectURL(previewObjectUrlRef.current);
       previewObjectUrlRef.current = null;
+    }
+  };
+
+  const revokeTestCoverUrl = () => {
+    if (testCoverUrlRef.current) {
+      URL.revokeObjectURL(testCoverUrlRef.current);
+      testCoverUrlRef.current = null;
     }
   };
 
@@ -100,7 +101,14 @@ export default function AdminPanel() {
     setSpineBowBottom(0);
     setSpineOffsetY(0);
     setSpineMode(SPINE_MODES.SOLID);
+    setLayoutMode(LAYOUT_MODES.MODE_3D);
+    setCategoryId('');
+    revokeTestCoverUrl();
+    setTestCoverImage(null);
+    setTestCoverName('');
   }, []);
+
+  const is2DMode = is2DLayoutMode(layoutMode);
 
   const displaySpineCoords = useMemo(
     () => applySpineOffsetY(spineCoords, spineOffsetY),
@@ -116,10 +124,34 @@ export default function AdminPanel() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await fetchCategories();
+      setCategoryOptions(flattenCategoryTree(data.tree || []));
+    } catch {
+      setCategoryOptions([]);
+    }
+  }, []);
+
+  const loadDemoCover = useCallback(async () => {
+    try {
+      const img = await loadImage(DEMO_COVER_URL);
+      setTestCoverImage(img);
+      setTestCoverName('demo-cover.png');
+    } catch {
+      /* demo fayl yo‘q bo‘lsa — foydalanuvchi o‘zi yuklaydi */
+    }
+  }, []);
+
   useEffect(() => {
     loadTemplates();
-    return () => revokePreviewUrl();
-  }, [loadTemplates]);
+    loadCategories();
+    loadDemoCover();
+    return () => {
+      revokePreviewUrl();
+      revokeTestCoverUrl();
+    };
+  }, [loadTemplates, loadCategories, loadDemoCover]);
 
   const applyTemplateToForm = useCallback((template) => {
     if (!template?._id) return;
@@ -132,10 +164,38 @@ export default function AdminPanel() {
     setSpineBowTop(bows.topBow);
     setSpineBowBottom(bows.bottomBow);
     setSpineMode(normalizeSpineMode(template.spineMode));
+    setLayoutMode(normalizeLayoutMode(template.layoutMode));
     setSpineOffsetY(normalizeSpineOffsetY(template.spineOffsetY));
+    setCategoryId(template.categoryId || template.category?._id || '');
     setImageFile(null);
     setBgPreview(mediaUrl(template.bgImage));
   }, []);
+
+  const applyTestCoverFile = useCallback(async (file) => {
+    if (!file?.type?.startsWith('image/')) {
+      setStatus('Тестовая обложка: загрузите JPG или PNG.');
+      return;
+    }
+    revokeTestCoverUrl();
+    testCoverUrlRef.current = URL.createObjectURL(file);
+    const img = await loadImage(testCoverUrlRef.current);
+    setTestCoverImage(img);
+    setTestCoverName(file.name);
+    setStatus('');
+  }, []);
+
+  const handleTestCoverInput = (event) => {
+    const file = event.target.files?.[0];
+    if (file) applyTestCoverFile(file);
+    event.target.value = '';
+  };
+
+  const handleTestCoverDrop = (event) => {
+    event.preventDefault();
+    setIsTestCoverDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) applyTestCoverFile(file);
+  };
 
   const startEdit = async (template) => {
     revokePreviewUrl();
@@ -154,22 +214,22 @@ export default function AdminPanel() {
     const rect = workspaceRef.current?.getBoundingClientRect();
     if (!rect) return null;
 
-    const relativeX = Math.min(Math.max(clientX - rect.left, 0), rect.width);
-    const relativeY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
+    const point = clientPointToCanvas(clientX, clientY, rect);
+    if (!point) return null;
 
     return {
-      x: Math.round((relativeX / rect.width) * CANVAS_SIZE),
-      y: Math.round((relativeY / rect.height) * CANVAS_SIZE),
+      x: Math.max(0, Math.min(CANVAS_SIZE, point.x)),
+      y: Math.max(0, Math.min(CANVAS_SIZE, point.y)),
     };
   }, []);
 
   const updateMarker = useCallback(
     (target, point) => {
-      if (target === 'spine-bow-top') {
+      if (!is2DMode && target === 'spine-bow-top') {
         setSpineBowTop(spineBowTopFromControlPoint(displaySpineCoords, point));
         return;
       }
-      if (target === 'spine-bow-bottom') {
+      if (!is2DMode && target === 'spine-bow-bottom') {
         setSpineBowBottom(spineBowBottomFromControlPoint(displaySpineCoords, point));
         return;
       }
@@ -182,7 +242,7 @@ export default function AdminPanel() {
         return;
       }
 
-      if (target.startsWith('spine-')) {
+      if (!is2DMode && target.startsWith('spine-')) {
         const index = Number(target.split('-')[1]);
         if (!Number.isNaN(index)) {
           setSpineCoords((prev) =>
@@ -193,7 +253,7 @@ export default function AdminPanel() {
         }
       }
     },
-    [displaySpineCoords, spineOffsetY]
+    [displaySpineCoords, spineOffsetY, is2DMode]
   );
 
   const handlePointerMove = useCallback(
@@ -292,6 +352,8 @@ export default function AdminPanel() {
           spineBowBottom: bottomToSave,
           spineOffsetY: offsetToSave,
           spineMode,
+          layoutMode,
+          categoryId: categoryId || undefined,
           imageFile: imageFile || undefined,
         });
         await loadTemplates();
@@ -310,6 +372,8 @@ export default function AdminPanel() {
           spineBowBottom: bottomToSave,
           spineOffsetY: offsetToSave,
           spineMode,
+          layoutMode,
+          categoryId: categoryId || undefined,
           imageFile,
         });
         setStatus('Новый шаблон сохранён.');
@@ -340,35 +404,58 @@ export default function AdminPanel() {
 
   const isEditing = Boolean(editingId);
 
+  const openPreviewModal = () => {
+    if (!bgPreview) {
+      setStatus('Сначала загрузите фон шаблона.');
+      return;
+    }
+    if (!testCoverImage) {
+      setStatus('Загрузите тестовую обложку (или дождитесь загрузки демо).');
+      return;
+    }
+    setPreviewRenderKey((k) => k + 1);
+    setPreviewOpen(true);
+    setStatus('');
+  };
+
+  const refreshPreviewModal = () => {
+    setPreviewRenderKey((k) => k + 1);
+  };
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="glass-panel p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="admin-templates-root flex w-full flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+        <div>
           <h2 className="font-display text-2xl font-semibold">
             {isEditing ? 'Редактирование шаблона' : 'Новый шаблон'}
           </h2>
-          {isEditing && (
-            <span className="rounded-full bg-gold-500/20 px-3 py-1 text-xs font-semibold text-gold-400">
-              Режим редактирования
-            </span>
-          )}
+          <p className="mt-1 text-sm text-white/55">
+            Маркеры = 1024×1024 (как у клиента). Синий CTL→CTR→CBR→CBL, оранжевый STL→STR→SBR→SBL
+          </p>
         </div>
+        {isEditing && (
+          <span className="rounded-full bg-gold-500/20 px-3 py-1 text-xs font-semibold text-gold-400">
+            Режим редактирования
+          </span>
+        )}
+      </div>
 
-        <p className="text-sm text-white/60 mb-4">
-          Загрузите макет книги и укажите, куда поместить обложку. Синий — лицевая сторона,
-          оранжевый — корешок.
-        </p>
-        <ul className="mb-6 flex flex-wrap gap-4 text-xs text-white/70">
-          <li className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-blue-500" /> Обложка
-          </li>
-          <li className="flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-orange-500" /> Корешок
-          </li>
-        </ul>
+      <ul className="flex flex-wrap gap-4 px-1 text-xs text-white/70">
+        <li className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-full bg-blue-500" /> Обложка
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-full bg-orange-500" /> Корешок
+        </li>
+      </ul>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2">
+      <form onSubmit={handleSubmit} className="admin-editor-stack">
+        <details className="admin-settings-drawer p-4" open>
+          <summary className="cursor-pointer text-sm font-semibold text-white/85">
+            Настройки шаблона
+          </summary>
+          <div className="mt-4 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block">
               <span className="mb-1.5 block text-sm text-white/70">Название шаблона</span>
               <input
@@ -379,7 +466,24 @@ export default function AdminPanel() {
                 required
               />
             </label>
-            <label className="flex items-end gap-3 pb-1">
+            <label className="block">
+              <span className="mb-1.5 block text-sm text-white/70">Категория макета</span>
+              <select
+                className="input-field"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+              >
+                <option value="">— без категории —</option>
+                {categoryOptions.map((cat) => (
+                  <option key={cat._id} value={cat._id}>
+                    {'\u00A0'.repeat(cat.depth * 2)}
+                    {cat.depth > 0 ? '└ ' : ''}
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-end gap-3 pb-1 sm:col-span-2">
               <input
                 type="checkbox"
                 checked={isPremium}
@@ -402,6 +506,25 @@ export default function AdminPanel() {
             />
           </label>
 
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 has-[:checked]:border-gold-500/50 has-[:checked]:bg-gold-500/10">
+            <input
+              type="checkbox"
+              checked={is2DMode}
+              onChange={(e) =>
+                setLayoutMode(e.target.checked ? LAYOUT_MODES.MODE_2D : LAYOUT_MODES.MODE_3D)
+              }
+              className="mt-1 h-4 w-4 rounded border-white/20 bg-ink-800 text-gold-500 focus:ring-gold-500"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-white">2D Mode</span>
+              <span className="mt-0.5 block text-xs text-white/55">
+                Faqat tekis muqova (4 burchak). Korishok o‘chiriladi; burilish chizig‘i va soyalar
+                avtomatik.
+              </span>
+            </span>
+          </label>
+
+          {!is2DMode && (
           <fieldset className="block space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
             <legend className="px-1 text-sm font-medium text-white/80">Корешок — способ (авто)</legend>
             <p className="text-xs text-white/50">
@@ -449,7 +572,10 @@ export default function AdminPanel() {
             </div>
 
           </fieldset>
+          )}
 
+          {!is2DMode && (
+          <>
           <label className="block">
             <span className="mb-1.5 flex justify-between text-sm text-white/70">
               <span>Yuqori qirr — STL ↔ STR (marker T)</span>
@@ -509,63 +635,85 @@ export default function AdminPanel() {
               Butun korishok blokini vertikal siljitadi (nuqtalar o‘zgarmaydi, faqat renderda).
             </p>
           </label>
+          </>
+          )}
 
           <div
-            ref={workspaceRef}
-            className={`relative mx-auto aspect-square w-full max-w-[640px] overflow-hidden rounded-2xl border ${
-              isEditing ? 'border-gold-500/50' : 'border-white/10'
-            } bg-ink-800 ${bgPreview ? '' : 'flex items-center justify-center'}`}
+            className={`admin-test-cover-zone ${isTestCoverDragging ? 'admin-test-cover-zone-active' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsTestCoverDragging(true);
+            }}
+            onDragLeave={() => setIsTestCoverDragging(false)}
+            onDrop={handleTestCoverDrop}
           >
-            {bgPreview ? (
-              <>
-                <img src={bgPreview} alt="Template background" className="h-full w-full object-contain" />
-                <CoordOverlay
-                  coverCoords={coverCoords}
-                  spineCoords={displaySpineCoords}
-                  spineBowTop={spineBowTop}
-                  spineBowBottom={spineBowBottom}
-                />
-                {coverCoords.map((point, index) => (
-                  <DraggableMarker
-                    key={`cover-${index}`}
-                    point={point}
-                    color="bg-blue-500"
-                    label={`C${CORNER_LABELS[index]}`}
-                    {...makeDragHandlers('cover', index)}
-                  />
-                ))}
-                {displaySpineCoords.map((point, index) => (
-                  <DraggableMarker
-                    key={`spine-${index}`}
-                    point={point}
-                    color="bg-orange-500"
-                    label={`S${CORNER_LABELS[index]}`}
-                    {...makeDragHandlers('spine', index)}
-                  />
-                ))}
-                <DraggableMarker
-                  key="spine-bow-top"
-                  point={topBowControlPoint}
-                  color="bg-amber-400"
-                  label="T"
-                  {...makeDragHandlers('spine-bow', 'top')}
-                />
-                <DraggableMarker
-                  key="spine-bow-bottom"
-                  point={bottomBowControlPoint}
-                  color="bg-amber-400"
-                  label="B"
-                  {...makeDragHandlers('spine-bow', 'bottom')}
-                />
-              </>
-            ) : (
-              <p className="text-sm text-white/40 px-6 text-center">
-                Загрузите изображение или выберите шаблон из списка для редактирования.
-              </p>
+            <p className="text-sm font-medium text-white/80">Тестовая обложка</p>
+            <p className="mt-1 text-xs text-white/45">
+              Демо-обложка загружена автоматически. Замените своей JPG/PNG при необходимости.
+            </p>
+            <label className="btn-ghost mt-3 inline-block cursor-pointer text-sm">
+              Другая обложка
+              <input type="file" accept="image/*" className="hidden" onChange={handleTestCoverInput} />
+            </label>
+            {testCoverName && (
+              <p className="mt-2 truncate text-xs text-amber-400/90">{testCoverName}</p>
             )}
           </div>
+          </div>
+        </details>
 
-          <div className="flex flex-wrap gap-3">
+        <div className="admin-workspace-wrap">
+          <AdminWorkspace
+            workspaceRef={workspaceRef}
+            bgPreview={bgPreview}
+            isEditing={isEditing}
+            is2DMode={is2DMode}
+            coverCoords={coverCoords}
+            displaySpineCoords={displaySpineCoords}
+            spineBowTop={spineBowTop}
+            spineBowBottom={spineBowBottom}
+            topBowControlPoint={topBowControlPoint}
+            bottomBowControlPoint={bottomBowControlPoint}
+            makeDragHandlers={makeDragHandlers}
+          />
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-ink-900/50 p-4">
+          <p className="mb-3 text-sm text-white/70">
+            После расстановки координат откройте точный предпросмотр — так же увидит клиент.
+          </p>
+          <button
+            type="button"
+            className="btn-primary w-full sm:w-auto"
+            onClick={openPreviewModal}
+            disabled={!bgPreview || !testCoverImage}
+          >
+            Предпросмотр макета
+          </button>
+          {(!bgPreview || !testCoverImage) && (
+            <p className="mt-2 text-xs text-white/40">
+              Нужны фон шаблона и тестовая обложка
+            </p>
+          )}
+        </div>
+
+        <AdminMockupPreviewModal
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          renderKey={previewRenderKey}
+          onRefresh={refreshPreviewModal}
+          backgroundSrc={bgPreview}
+          coverImage={testCoverImage}
+          coverCoords={coverCoords}
+          spineCoords={displaySpineCoords}
+          spineBowTop={spineBowTop}
+          spineBowBottom={spineBowBottom}
+          spineMode={spineMode}
+          spineOffsetY={spineOffsetY}
+          layoutMode={layoutMode}
+        />
+
+        <div className="flex flex-wrap gap-3 px-1">
             <button type="submit" className="btn-primary" disabled={isSubmitting}>
               {isSubmitting
                 ? 'Сохранение…'
@@ -589,13 +737,14 @@ export default function AdminPanel() {
               </button>
             )}
           </div>
-          {status && <p className="text-sm text-gold-400">{status}</p>}
-        </form>
-      </section>
+        {status && <p className="px-1 text-sm text-gold-400">{status}</p>}
+      </form>
 
-      <aside className="glass-panel p-6">
-        <h3 className="font-display text-lg font-semibold mb-4">Сохранённые шаблоны</h3>
-        <ul className="space-y-3 max-h-[720px] overflow-y-auto pr-1">
+      <details className="admin-settings-drawer p-4">
+        <summary className="cursor-pointer font-display text-lg font-semibold text-white/90">
+          Сохранённые шаблоны ({templates.length})
+        </summary>
+        <ul className="admin-template-rail mt-4 space-y-3">
           {templates.map((template) => {
             const isActive = editingId === template._id;
             const bows = resolveSpineBows(template);
@@ -621,6 +770,7 @@ export default function AdminPanel() {
                   <div className="min-w-0">
                     <p className="font-medium truncate">{template.title}</p>
                     <p className="text-xs text-white/50">
+                      {template.category?.name ? `${template.category.name} · ` : ''}
                       {template.isPremium ? 'Премиум' : 'Бесплатно'} · T {bows.topBow}px · B{' '}
                       {bows.bottomBow}px
                       {Number(template.spineOffsetY)
@@ -654,7 +804,7 @@ export default function AdminPanel() {
             <p className="text-sm text-white/50">Шаблонов пока нет.</p>
           )}
         </ul>
-      </aside>
+      </details>
     </div>
   );
 }

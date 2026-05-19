@@ -39,11 +39,16 @@ export const createTemplate = async ({
   spineBowBottom = 0,
   spineOffsetY = 0,
   spineMode = 'solid',
+  layoutMode = '3d',
+  categoryId = '',
   imageFile,
 }) => {
   const formData = new FormData();
   formData.append('title', title);
   formData.append('isPremium', String(isPremium));
+  if (categoryId) {
+    formData.append('categoryId', String(categoryId));
+  }
   formData.append('coverCoords', JSON.stringify(coverCoords));
   formData.append('spineCoords', JSON.stringify(spineCoords));
   formData.append('spineBowTop', String(Math.round(Number(spineBowTop)) || 0));
@@ -51,6 +56,7 @@ export const createTemplate = async ({
   formData.append('spineCurvature', '0');
   formData.append('spineOffsetY', String(Math.round(Number(spineOffsetY)) || 0));
   formData.append('spineMode', spineMode);
+  formData.append('layoutMode', layoutMode);
   formData.append('templateImage', imageFile);
 
   const response = await fetch(apiUrl('/api/templates'), {
@@ -73,11 +79,16 @@ export const updateTemplate = async ({
   spineBowBottom = 0,
   spineOffsetY = 0,
   spineMode = 'solid',
+  layoutMode = '3d',
+  categoryId = '',
   imageFile,
 }) => {
   const formData = new FormData();
   formData.append('title', title);
   formData.append('isPremium', String(isPremium));
+  if (categoryId) {
+    formData.append('categoryId', String(categoryId));
+  }
   formData.append('coverCoords', JSON.stringify(coverCoords));
   formData.append('spineCoords', JSON.stringify(spineCoords));
   formData.append('spineBowTop', String(Math.round(Number(spineBowTop)) || 0));
@@ -85,6 +96,7 @@ export const updateTemplate = async ({
   formData.append('spineCurvature', '0');
   formData.append('spineOffsetY', String(Math.round(Number(spineOffsetY)) || 0));
   formData.append('spineMode', spineMode);
+  formData.append('layoutMode', layoutMode);
   if (imageFile) {
     formData.append('templateImage', imageFile);
   }
